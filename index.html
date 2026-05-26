@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>应用icon创作大师</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">IC</div>
+          <div>
+            <p class="eyebrow">Icon Studio</p>
+            <h1>应用icon创作大师</h1>
+          </div>
+        </div>
+
+        <nav class="stage-nav" id="stageNav" aria-label="流程阶段"></nav>
+
+        <section class="locked-panel">
+          <div class="panel-title">
+            <span>硬约束锁定</span>
+            <span class="status-dot"></span>
+          </div>
+          <dl id="lockedSummary">
+            <div>
+              <dt>平台</dt>
+              <dd>Google Ads</dd>
+            </div>
+            <div>
+              <dt>情绪</dt>
+              <dd>待选择</dd>
+            </div>
+            <div>
+              <dt>文字角标</dt>
+              <dd>默认不加</dd>
+            </div>
+          </dl>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Ad Icon Creative Console</p>
+            <h2 id="stageTitle">S1 产品检索 & 需求输入</h2>
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-button" id="resetBtn" type="button">重置</button>
+            <button class="primary-button" id="nextBtn" type="button">下一步</button>
+          </div>
+        </header>
+
+        <section class="product-hero" aria-label="产品概览">
+          <div class="hero-copy">
+            <div class="hero-badge">Icon Only · 8-Stage · 投放可用性优先</div>
+            <h2>应用icon创作大师</h2>
+            <p>把待投产品、竞品和平台约束转化为可质检、可展示、可导出的应用 Icon 方案。</p>
+          </div>
+          <div class="hero-metrics">
+            <div class="model-status" id="modelStatus">
+              <strong>--</strong>
+              <span>模型连接</span>
+            </div>
+            <div>
+              <strong>3</strong>
+              <span>次用户参与</span>
+            </div>
+            <div>
+              <strong>8</strong>
+              <span>阶段闭环</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="hero-flow" aria-label="流程概览">
+          <div class="flow-line" id="flowLine"></div>
+        </section>
+
+        <section class="content-grid">
+          <div class="main-card" id="stageContent"></div>
+          <aside class="side-card">
+            <div class="panel-title">
+              <span>当前输出</span>
+              <span id="outputBadge">S1</span>
+            </div>
+            <pre id="stageOutput"></pre>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
