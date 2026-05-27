@@ -50,7 +50,7 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 328px minmax(0, 1fr);
+  grid-template-columns: 268px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -60,8 +60,8 @@ button {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 26px 20px;
+  gap: 16px;
+  padding: 18px 12px;
   border-right: 1px solid var(--line);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.9)),
@@ -72,8 +72,8 @@ button {
 .brand {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 8px;
+  gap: 10px;
+  padding: 7px;
   border: 1px solid rgba(215, 224, 237, 0.72);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.72);
@@ -83,9 +83,9 @@ button {
   position: relative;
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   color: white;
   font-weight: 900;
   background:
@@ -99,10 +99,10 @@ button {
 .brand-mark::after {
   content: "";
   position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 9px;
-  height: 9px;
+  right: 6px;
+  bottom: 6px;
+  width: 8px;
+  height: 8px;
   border: 2px solid rgba(255, 255, 255, 0.88);
   border-radius: 50%;
   background: var(--orange);
@@ -126,22 +126,22 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1.25;
 }
 
 .stage-nav {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .stage-link {
   display: grid;
-  grid-template-columns: 34px 1fr auto;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 11px;
+  padding: 9px 8px;
   border: 1px solid transparent;
   border-radius: 12px;
   color: var(--ink);
@@ -166,8 +166,8 @@ h1 {
 .stage-num {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   color: white;
   font-size: 12px;
@@ -176,18 +176,18 @@ h1 {
 }
 
 .stage-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 750;
   line-height: 1.25;
 }
 
 .stage-tag,
 #outputBadge {
-  padding: 4px 8px;
+  padding: 3px 6px;
   border-radius: 999px;
   color: var(--blue);
   background: var(--blue-weak);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -208,7 +208,7 @@ h1 {
 
 .locked-panel {
   margin-top: auto;
-  padding: 16px;
+  padding: 12px;
   background:
     linear-gradient(180deg, rgba(232, 239, 255, 0.55), transparent 64%),
     white;
@@ -219,8 +219,8 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
-  font-size: 14px;
+  margin-bottom: 8px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -239,8 +239,8 @@ dl {
 dl div {
   display: flex;
   justify-content: space-between;
-  gap: 14px;
-  padding: 10px 0;
+  gap: 10px;
+  padding: 7px 0;
   border-top: 1px solid #eef2f6;
 }
 
@@ -482,6 +482,220 @@ dd {
   font-size: 12px;
   font-weight: 800;
   line-height: 1.3;
+}
+
+.smoke-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 40px rgba(24, 35, 56, 0.08);
+}
+
+.smoke-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.smoke-head strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+.smoke-head span,
+.smoke-empty {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.smoke-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.smoke-actions button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.smoke-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--green-weak);
+}
+
+.smoke-summary.failed {
+  background: var(--orange-weak);
+}
+
+.smoke-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.smoke-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.smoke-step {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e3eaf4;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+.smoke-step strong {
+  font-size: 12px;
+}
+
+.smoke-step span {
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--green);
+  background: var(--green-weak);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.smoke-step.failed span,
+.smoke-step.warning span {
+  color: #9a4d00;
+  background: var(--orange-weak);
+}
+
+.smoke-step small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.smoke-io {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.smoke-io details {
+  min-width: 0;
+  border: 1px solid #e3eaf4;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+.smoke-io summary {
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.smoke-io pre {
+  max-height: 320px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border-top: 1px solid #e3eaf4;
+  color: #1e293b;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.prompt-check-report {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.prompt-check-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #bdebd7;
+  border-radius: 10px;
+  background: var(--green-weak);
+}
+
+.prompt-check-report.warning .prompt-check-summary,
+.prompt-check-report.block .prompt-check-summary {
+  border-color: #ffd6a8;
+  background: var(--orange-weak);
+}
+
+.prompt-check-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.prompt-check-list {
+  display: grid;
+  gap: 10px;
+}
+
+.prompt-check-item {
+  padding: 12px;
+  border: 1px solid #e3eaf4;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+.prompt-check-item.warning,
+.prompt-check-item.block {
+  border-color: #ffd6a8;
+  background: #fffaf3;
+}
+
+.prompt-check-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.prompt-check-head span {
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #9a4d00;
+  background: var(--orange-weak);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.prompt-check-item.pass .prompt-check-head span {
+  color: var(--green);
+  background: var(--green-weak);
+}
+
+.prompt-check-item p,
+.prompt-check-item li {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .content-grid {
@@ -1519,6 +1733,15 @@ pre {
     flex-direction: column;
   }
 
+  .smoke-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .smoke-actions button {
+    flex: 1;
+  }
+
   .stage-footer-action {
     align-items: stretch;
     flex-direction: column;
@@ -1547,6 +1770,11 @@ pre {
   .upload-list,
   .reference-grid,
   .delivery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .smoke-steps,
+  .smoke-io {
     grid-template-columns: 1fr;
   }
 

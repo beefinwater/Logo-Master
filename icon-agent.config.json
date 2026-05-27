@@ -1,0 +1,222 @@
+{
+  "models": {
+    "text": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com/v1"
+    },
+    "image": {
+      "provider": "volcengine",
+      "model": "doubao-seedream-5-0-lite-260128",
+      "size": "2048x2048"
+    }
+  },
+  "reference_policy": {
+    "priority": ["user_uploaded_reference", "product_icon", "competitor_icons"],
+    "deepseek_requires_public_image_url": true
+  },
+  "prompt_field_names": [
+    "game_genre",
+    "setting",
+    "core_narrative",
+    "scene_context",
+    "subject_type",
+    "archetype",
+    "pose",
+    "facial_expression",
+    "camera_angle",
+    "eye_contact",
+    "render_style",
+    "detail_level",
+    "lighting_style",
+    "color_strategy",
+    "surface_finish",
+    "background_story",
+    "curiosity_trigger",
+    "urgency_trigger",
+    "emotional_reaction_trigger",
+    "dramatic_visual_tension",
+    "value_desire",
+    "symbol_set"
+  ],
+  "protocol_schema": {
+    "ICON_CREATIVE_PROTOCOL": {
+      "META": {
+        "version": "1.0",
+        "product_name": "",
+        "platform": "",
+        "created_at": ""
+      },
+      "PRODUCT_SYSTEM": {
+        "app_info": {
+          "title": "",
+          "category": "",
+          "developer": "",
+          "google_play_url": ""
+        },
+        "gameplay": {
+          "core_gameplay": "",
+          "gameplay_keywords": [],
+          "progression_loop": "",
+          "reward_mechanism": []
+        },
+        "audience_and_positioning": {
+          "target_audience": [],
+          "product_positioning": "",
+          "acquisition_style": ""
+        },
+        "world_setting": "",
+        "commercial_hooks": []
+      },
+      "SUBJECT_SYSTEM": {
+        "possible_primary_subjects": [],
+        "possible_focal_objects": [],
+        "recommended_primary_subject": "",
+        "forced_primary_subject": "",
+        "forced_focal_object": ""
+      },
+      "VISUAL_SYSTEM": {
+        "art_style": "",
+        "world_palette": [],
+        "atmosphere": "",
+        "visual_keywords": [],
+        "preferred_palette": [],
+        "preferred_rendering_style": ""
+      },
+      "MARKET_SYSTEM": {
+        "composition_patterns": [],
+        "focal_mechanisms": [],
+        "subject_patterns": [],
+        "emotional_patterns": [],
+        "color_strategy": [],
+        "rendering_strategy": [],
+        "high_ctr_mechanisms": [],
+        "differentiation_space": []
+      },
+      "USER_SYSTEM": {
+        "creative_directions": [],
+        "desired_emotions": [],
+        "desired_aggressiveness": "",
+        "differentiation_preference": "",
+        "reference_priority": []
+      },
+      "TEXT_SYSTEM": {
+        "enabled": false,
+        "text": "",
+        "language": "",
+        "position": "bottom-right badge",
+        "max_chars": 5
+      },
+      "CTR_SYSTEM": {
+        "attention_hooks": [],
+        "curiosity_triggers": [],
+        "reward_triggers": [],
+        "stopping_power_strategy": ""
+      },
+      "USABILITY_SYSTEM": {
+        "readability_64px": "",
+        "focal_point_count": "",
+        "subject_occupancy": "",
+        "background_complexity": "",
+        "silhouette_strategy": ""
+      },
+      "COMPLIANCE_SYSTEM": {
+        "platform_constraints": [],
+        "must_include": [],
+        "must_not_include": [],
+        "risky_elements": [],
+        "safe_elements": []
+      }
+    }
+  },
+  "output_schemas": {
+    "s2_analysis": {
+      "ICON_CREATIVE_PROTOCOL": {},
+      "product_analysis": {
+        "core_gameplay": "",
+        "theme": "",
+        "art_style": "",
+        "visual_style": "",
+        "target_audience": "",
+        "core_selling_points": [],
+        "ad_expressible_points": []
+      },
+      "product_icon_analysis": {
+        "image_content": "",
+        "main_subject": "",
+        "visual_style": "",
+        "color_features": "",
+        "composition_features": "",
+        "text_features": "",
+        "small_size_readability": "",
+        "identity_cues": []
+      },
+      "competitor_icon_analysis": [],
+      "common_icon_signature": {
+        "subject_pattern": "",
+        "composition_pattern": "",
+        "color_pattern": "",
+        "rendering_pattern": "",
+        "emotion_pattern": "",
+        "text_or_badge_pattern": "",
+        "market_effective_formula": []
+      },
+      "differentiation_opportunities": {
+        "keep": [],
+        "strengthen": [],
+        "avoid_copying": [],
+        "possible_breakthrough_points": []
+      },
+      "generation_prompt_fields": {},
+      "locked_insights_for_next_stage": {
+        "identity_anchor": "",
+        "reference_priority": ["user_uploaded_reference", "product_icon", "competitor_icons"],
+        "must_include_candidates": [],
+        "must_not_include_candidates": [],
+        "style_keywords": [],
+        "risk_flags": []
+      }
+    },
+    "s4_prompt_plan": {
+      "prompt_plan": [
+        {
+          "variant_tag": "",
+          "creative_rationale": "",
+          "generation_mode": "text_to_image",
+          "reference_image_policy": {
+            "use_user_uploaded_references": true,
+            "use_product_icon_reference": true,
+            "use_competitor_icon_references": true,
+            "reference_priority": ["user_uploaded_reference", "product_icon", "competitor_icons"]
+          },
+          "generation_prompt_fields": {},
+          "final_prompt": "",
+          "negative_constraints": [],
+          "quality_checkpoints": []
+        }
+      ]
+    },
+    "s4_prompt_check": {
+      "overall_status": "pass",
+      "summary": "",
+      "checked_items": [
+        {
+          "prompt_id": "",
+          "variant_tag": "",
+          "status": "pass",
+          "risk_level": "none",
+          "risk_categories": [],
+          "flagged_terms": [],
+          "reason": "",
+          "rewrite_suggestions": []
+        }
+      ],
+      "global_rewrite_suggestions": []
+    }
+  },
+  "prompt_templates": {
+    "s2_analysis": "You are a senior mobile game creative strategist and app icon visual analyst.\\n\\nYour task:\\nAnalyze the current app icon generation project using the provided user inputs, Google Play product data, product icon, screenshots, competitor icons, and uploaded reference image URLs. Build a unified ICON_CREATIVE_PROTOCOL and also return legacy compatibility fields used by the current app UI.\\n\\nInput payload:\\n{WORKFLOW_JSON}\\n\\nUnified protocol schema:\\n{PROTOCOL_SCHEMA_JSON}\\n\\nCompatibility output schema:\\n{OUTPUT_SCHEMA_JSON}\\n\\nRules:\\n1. Output ONLY valid JSON.\\n2. Do NOT output Markdown.\\n3. Keep field names exactly consistent.\\n4. Do not invent new top-level fields outside the schema.\\n5. Platform rules come from imported_platform_rules; preserve them under COMPLIANCE_SYSTEM.platform_constraints and do not rewrite them.\\n6. Preserve reference priority exactly: user_uploaded_reference > product_icon > competitor_icons.\\n7. Fill generation_prompt_fields with all configured prompt field names.\\n8. Use concise production-ready language.\\n\\nConfigured generation_prompt_fields:\\n{PROMPT_FIELD_NAMES_JSON}\\n\\nAnalyze now.",
+    "s4_prompt_plan": "You are a senior mobile game creative director and image-generation prompt engineer specializing in high-CTR app icon generation.\\n\\nYour task:\\nBased on the provided workflow, model analysis, ICON_CREATIVE_PROTOCOL, selected directions, and reference summary, generate prompt plans for the image generation step.\\n\\nInput payload:\\n{S4_INPUT_JSON}\\n\\nRequired output schema:\\n{OUTPUT_SCHEMA_JSON}\\n\\nRules:\\n1. Output ONLY valid JSON.\\n2. Do NOT output Markdown.\\n3. Generate exactly {COUNT} prompt_plan items.\\n4. Each variant_tag must come from: {DIRECTIONS}.\\n5. Each variant must differ meaningfully in at least 3 of these dimensions: subject, pose, lighting, color strategy, click mechanism, emotional trigger.\\n6. Preserve all must_include and must_not_include constraints.\\n7. Do not mention any specific image model brand. Use generic image generation language.\\n8. final_prompt must be directly usable by an image generation model.\\n9. The icon must be a transparent-background PNG style asset.\\n10. Do not generate store mockups, phone frames, UI screenshots, or ad layouts.\\n11. Keep generation_prompt_fields aligned exactly with the configured field names.\\n\\nConfigured generation_prompt_fields:\\n{PROMPT_FIELD_NAMES_JSON}\\n\\nGenerate now.",
+    "s4_prompt_check": "You are a safety and compliance reviewer for prompts that will be sent to an image generation model.\\n\\nYour task:\\nReview the provided app icon generation prompts and identify words, phrases, or instructions that may commonly cause an image generation model to refuse, block, or heavily filter the request.\\n\\nInput payload:\\n{PROMPT_CHECK_INPUT_JSON}\\n\\nRequired output schema:\\n{OUTPUT_SCHEMA_JSON}\\n\\nFocus risk categories:\\n- sexual or nude content, including minors or suggestive childlike descriptions\\n- graphic violence, gore, blood, dismemberment, torture, cruelty, or self-harm\\n- hate, harassment, extremist, terrorist, or dehumanizing content\\n- illegal activities, drugs, weapons misuse, fraud, phishing, gambling claims, or regulated goods\\n- real-person likeness, celebrity/politician impersonation, copyrighted characters, trademark copying, or competitor logo copying\\n- misleading claims, guaranteed earnings, guaranteed outcomes, medical/legal/financial promises\\n- requests to bypass model policy, ignore safety rules, or hide prohibited content\\n\\nRules:\\n1. Output ONLY valid JSON.\\n2. Do NOT output Markdown.\\n3. Do NOT add new top-level fields.\\n4. Do NOT rewrite the full prompt. Only provide concise rewrite suggestions for risky phrases.\\n5. If a term is safe in context, do not flag it.\\n6. Use status=pass when no meaningful issue is found.\\n7. Use status=warning for wording that may be over-filtered but can be rewritten.\\n8. Use status=block for clearly disallowed or high-risk wording that should not be sent to the image generation model.\\n9. Keep flagged_terms short and quote only the exact risky words or short phrases.\\n\\nReview now."
+  }
+}

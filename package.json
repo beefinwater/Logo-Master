@@ -4,7 +4,10 @@
   "description": "这是一个静态 H5 原型，用来承载「应用icon创作大师」的 8-stage 工作流。",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm run smoke",
+    "smoke": "node scripts/smoke-test.js quick",
+    "smoke:ai": "node scripts/smoke-test.js ai",
+    "smoke:full": "node scripts/smoke-test.js full",
     "start": "node server.js"
   },
   "keywords": [],

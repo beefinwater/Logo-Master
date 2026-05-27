@@ -8,6 +8,7 @@ const sharp = require("sharp");
 const AdmZip = require("adm-zip");
 
 const rootDir = __dirname;
+const appConfig = loadAppConfig();
 const outputDir = path.join(rootDir, "generated");
 const exportDir = path.join(rootDir, "exports");
 const uploadDir = path.join(rootDir, "uploads");
@@ -16,19 +17,19 @@ const port = Number(process.env.PORT || 8787);
 loadLocalEnv();
 
 const apiKey = process.env.OPENAI_API_KEY || "";
-const aiProvider = (process.env.AI_PROVIDER || "openai").toLowerCase();
-const imageProvider = (process.env.IMAGE_PROVIDER || "openai").toLowerCase();
+const aiProvider = (process.env.AI_PROVIDER || appConfig.models?.text?.provider || "openai").toLowerCase();
+const imageProvider = (process.env.IMAGE_PROVIDER || appConfig.models?.image?.provider || "openai").toLowerCase();
 const kimiApiKey = process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY || "";
 const kimiBaseUrl = (process.env.KIMI_BASE_URL || "https://api.moonshot.cn/v1").replace(/\/+$/, "");
 const deepseekApiKey = process.env.DEEPSEEK_API_KEY || "";
-const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/+$/, "");
+const deepseekBaseUrl = (process.env.DEEPSEEK_BASE_URL || appConfig.models?.text?.base_url || "https://api.deepseek.com/v1").replace(/\/+$/, "");
 const dashscopeApiKey = process.env.DASHSCOPE_API_KEY || process.env.ALIYUN_API_KEY || "";
 const dashscopeBaseUrl = (process.env.DASHSCOPE_BASE_URL || "https://dashscope.aliyuncs.com/api/v1").replace(/\/+$/, "");
 const arkApiKey = process.env.ARK_API_KEY || process.env.VOLCENGINE_API_KEY || "";
 const arkBaseUrl = (process.env.ARK_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3").replace(/\/+$/, "");
 const textModel = process.env.OPENAI_TEXT_MODEL || "gpt-4.1";
 const kimiTextModel = process.env.KIMI_TEXT_MODEL || "kimi-k2.6";
-const deepseekTextModel = process.env.DEEPSEEK_TEXT_MODEL || "deepseek-v4-pro";
+const deepseekTextModel = process.env.DEEPSEEK_TEXT_MODEL || appConfig.models?.text?.model || "deepseek-v4-pro";
 const aliyunTextModel = process.env.ALIYUN_TEXT_MODEL || "qwen-plus";
 const volcengineTextModel = process.env.VOLCENGINE_TEXT_MODEL || process.env.ARK_TEXT_MODEL || "doubao-seed-1-6-251015";
 const imageModel = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
@@ -36,8 +37,8 @@ const kimiImageModel = process.env.KIMI_IMAGE_MODEL || process.env.KIMI_TEXT_MOD
 const kimiImageEndpoint = process.env.KIMI_IMAGE_ENDPOINT || `${kimiBaseUrl}/images/generations`;
 const aliyunImageModel = process.env.ALIYUN_IMAGE_MODEL || "wan2.7-image";
 const aliyunImageSize = process.env.ALIYUN_IMAGE_SIZE || "1K";
-const volcengineImageModel = process.env.VOLCENGINE_IMAGE_MODEL || process.env.ARK_IMAGE_MODEL || "doubao-seedream-3-0-t2i-250415";
-const volcengineImageSize = process.env.VOLCENGINE_IMAGE_SIZE || "2048x2048";
+const volcengineImageModel = process.env.VOLCENGINE_IMAGE_MODEL || process.env.ARK_IMAGE_MODEL || appConfig.models?.image?.model || "doubao-seedream-3-0-t2i-250415";
+const volcengineImageSize = process.env.VOLCENGINE_IMAGE_SIZE || appConfig.models?.image?.size || "2048x2048";
 
 fs.mkdirSync(outputDir, { recursive: true });
 fs.mkdirSync(exportDir, { recursive: true });
@@ -58,6 +59,17 @@ function loadLocalEnv() {
     if (key && process.env[key] === undefined) {
       process.env[key] = value;
     }
+  }
+}
+
+function loadAppConfig() {
+  const configPath = path.join(rootDir, "icon-agent.config.json");
+  if (!fs.existsSync(configPath)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(configPath, "utf8"));
+  } catch (error) {
+    console.warn(`Failed to read icon-agent.config.json: ${error.message}`);
+    return {};
   }
 }
 
@@ -118,6 +130,14 @@ function parseDataUrl(dataUrl = "") {
     mime: match[1].toLowerCase(),
     buffer: Buffer.from(match[2], "base64"),
   };
+}
+
+function renderTemplate(template = "", values = {}) {
+  return String(template).replace(/\{([A-Z0-9_]+)\}/g, (_, key) => {
+    const value = values[key];
+    if (typeof value === "string") return value;
+    return JSON.stringify(value ?? "", null, 2);
+  });
 }
 
 function extensionFromMime(mime = "") {
@@ -530,7 +550,7 @@ function imageInputItems(files = []) {
     .slice(0, 2)
     .map((file) => ({
       type: "input_image",
-      image_url: file.publicUrl || file.dataUrl,
+      image_url: file.dataUrl || file.publicUrl,
       public_url: file.publicUrl || "",
       detail: "low",
       name: file.name || "",
@@ -872,6 +892,19 @@ function buildWorkflowPayload(input) {
 
 async function analyzeWorkflow(input) {
   const workflow = buildWorkflowPayload(input);
+  if (appConfig.prompt_templates?.s2_analysis) {
+    const configuredPrompt = renderTemplate(appConfig.prompt_templates.s2_analysis, {
+      WORKFLOW_JSON: workflow,
+      PROTOCOL_SCHEMA_JSON: appConfig.protocol_schema || {},
+      OUTPUT_SCHEMA_JSON: appConfig.output_schemas?.s2_analysis || {},
+      PROMPT_FIELD_NAMES_JSON: appConfig.prompt_field_names || [],
+    });
+    const text = await runStructuredAnalysis({
+      text: configuredPrompt,
+      images: await visualReferenceInputItems(input),
+    });
+    return normalizeAnalysisResult(parseJsonLoose(text) || { raw_text: text });
+  }
   const text = await runStructuredAnalysis({
     text: `你是广告投放 Icon 素材生成 Agent 的 S2 分析器。
 你的任务：基于 S1 输入、Google Play 主产品资料、主产品 icon / feature graphic / screenshots、竞品 icon、用户上传参考图，输出产品/竞品/icon 的结构化分析。
@@ -1049,6 +1082,129 @@ ${JSON.stringify(
   return [];
 }
 
+function normalizeAnalysisResult(result = {}) {
+  const promptFields = appConfig.prompt_field_names || [];
+  result.ICON_CREATIVE_PROTOCOL = result.ICON_CREATIVE_PROTOCOL || appConfig.protocol_schema?.ICON_CREATIVE_PROTOCOL || {};
+  result.generation_prompt_fields = result.generation_prompt_fields || {};
+  for (const field of promptFields) {
+    if (result.generation_prompt_fields[field] === undefined) result.generation_prompt_fields[field] = "";
+  }
+  result.locked_insights_for_next_stage = result.locked_insights_for_next_stage || {};
+  result.locked_insights_for_next_stage.reference_priority =
+    result.locked_insights_for_next_stage.reference_priority || appConfig.reference_policy?.priority || ["user_uploaded_reference", "product_icon", "competitor_icons"];
+  return result;
+}
+
+function normalizePromptPlan(plan = [], directions = [], count = 1) {
+  const promptFields = appConfig.prompt_field_names || [];
+  return Array.from({ length: count }).map((_, index) => {
+    const item = plan[index] || {};
+    const fields = item.generation_prompt_fields || {};
+    for (const field of promptFields) {
+      if (fields[field] === undefined) fields[field] = "";
+    }
+    return {
+      variant_tag: item.variant_tag || directions[index % Math.max(1, directions.length)] || "点击强化",
+      creative_rationale: item.creative_rationale || "",
+      generation_mode: item.generation_mode || "",
+      reference_image_policy: item.reference_image_policy || {
+        use_user_uploaded_references: true,
+        use_product_icon_reference: true,
+        use_competitor_icon_references: true,
+        reference_priority: appConfig.reference_policy?.priority || ["user_uploaded_reference", "product_icon", "competitor_icons"],
+      },
+      generation_prompt_fields: fields,
+      final_prompt: item.final_prompt || item.prompt || item.generation_prompt || "",
+      prompt: item.final_prompt || item.prompt || item.generation_prompt || "",
+      negative_constraints: item.negative_constraints || [],
+      quality_checkpoints: item.quality_checkpoints || [],
+    };
+  });
+}
+
+async function optimizePromptsConfigured(input) {
+  if (!appConfig.prompt_templates?.s4_prompt_plan) return optimizePrompts(input);
+  const workflow = buildWorkflowPayload(input);
+  const count = Math.max(1, Math.min(2, Number(input.count || workflow.variant_count || 2)));
+  const directions = (input.directions || workflow.directions || ["点击强化"]).slice(0, 2);
+  const s4Input = {
+    workflow,
+    model_analysis: input.modelAnalysis || null,
+    icon_creative_protocol: input.modelAnalysis?.ICON_CREATIVE_PROTOCOL || null,
+    selected_directions: directions,
+    variant_count: count,
+    reference_summary: {
+      has_user_uploads: Boolean((input.referenceFiles || []).length),
+      uploaded_reference_public_urls: (input.referenceFiles || []).map((file) => file.publicUrl || file.url || "").filter(Boolean),
+      has_product_icon: Boolean(input.googlePlayReferences?.icon),
+      product_icon_url: input.googlePlayReferences?.icon || "",
+      competitor_icon_count: (input.competitorGooglePlayReferences || []).filter((item) => item.icon).length,
+      competitor_icon_urls: (input.competitorGooglePlayReferences || []).map((item) => item.icon).filter(Boolean),
+    },
+  };
+  const configuredPrompt = renderTemplate(appConfig.prompt_templates.s4_prompt_plan, {
+    S4_INPUT_JSON: s4Input,
+    OUTPUT_SCHEMA_JSON: appConfig.output_schemas?.s4_prompt_plan || {},
+    PROMPT_FIELD_NAMES_JSON: appConfig.prompt_field_names || [],
+    COUNT: String(count),
+    DIRECTIONS: directions.join(" / "),
+  });
+  const text = await runStructuredAnalysis({ text: configuredPrompt });
+  const parsed = parseJsonLoose(text);
+  if (parsed?.prompt_plan) return normalizePromptPlan(parsed.prompt_plan, directions, count);
+  return [];
+}
+
+async function checkPrompts(input) {
+  const promptJson = Array.isArray(input.promptJson) ? input.promptJson : [];
+  if (!promptJson.length) throw new Error("No prompt_json found for S4 prompt check.");
+  const checkInput = {
+    platform: input.platform || "Google Ads",
+    product: input.product || "",
+    prompt_count: promptJson.length,
+    prompt_items: promptJson.map((prompt, index) => ({
+      prompt_id: prompt.prompt_id || `prompt_${index + 1}`,
+      variant_tag: prompt.variant_tag || "",
+      prompt_text: prompt.prompt_text || prompt.prompt || "",
+      must_include: prompt.constraints?.must_include || [],
+      must_not_include: prompt.constraints?.must_not_include || [],
+      text_spec: prompt.text_spec || {},
+    })),
+  };
+  const configuredPrompt = renderTemplate(appConfig.prompt_templates?.s4_prompt_check || "", {
+    PROMPT_CHECK_INPUT_JSON: checkInput,
+    OUTPUT_SCHEMA_JSON: appConfig.output_schemas?.s4_prompt_check || {},
+  });
+  const text = await runStructuredAnalysis({ text: configuredPrompt || JSON.stringify(checkInput, null, 2) });
+  const parsed = parseJsonLoose(text) || { raw_text: text };
+  return normalizePromptCheck(parsed, promptJson);
+}
+
+function normalizePromptCheck(result = {}, promptJson = []) {
+  const checkedItems = Array.isArray(result.checked_items) ? result.checked_items : [];
+  const normalizedItems = promptJson.map((prompt, index) => {
+    const item = checkedItems[index] || checkedItems.find((entry) => entry.prompt_id === prompt.prompt_id) || {};
+    return {
+      prompt_id: item.prompt_id || prompt.prompt_id || `prompt_${index + 1}`,
+      variant_tag: item.variant_tag || prompt.variant_tag || "",
+      status: ["pass", "warning", "block"].includes(item.status) ? item.status : "warning",
+      risk_level: item.risk_level || (item.status === "block" ? "high" : item.status === "warning" ? "medium" : "none"),
+      risk_categories: Array.isArray(item.risk_categories) ? item.risk_categories : [],
+      flagged_terms: Array.isArray(item.flagged_terms) ? item.flagged_terms : [],
+      reason: item.reason || "",
+      rewrite_suggestions: Array.isArray(item.rewrite_suggestions) ? item.rewrite_suggestions : [],
+    };
+  });
+  const hasBlock = normalizedItems.some((item) => item.status === "block");
+  const hasWarning = normalizedItems.some((item) => item.status === "warning");
+  return {
+    overall_status: hasBlock ? "block" : hasWarning ? "warning" : result.overall_status || "pass",
+    summary: result.summary || (hasBlock ? "存在高风险提示词，建议修改后再生成。" : hasWarning ? "存在可能触发过滤的措辞，建议优化。" : "未发现明显高风险禁用词。"),
+    checked_items: normalizedItems,
+    global_rewrite_suggestions: Array.isArray(result.global_rewrite_suggestions) ? result.global_rewrite_suggestions : [],
+  };
+}
+
 async function googlePlayLookup(input) {
   const product = String(input.product || "").trim();
   const competitors = String(input.competitors || "")
@@ -1199,6 +1355,191 @@ function extractNearAppIdDeveloper(html, appId) {
   if (index === -1) return "";
   const slice = html.slice(index, index + 20000);
   return firstMatch(slice, /],"([^"]+)",\["[0-9.]+",[0-9.]+\],"[^"]+"/) || "";
+}
+
+async function makeSmokeReferenceDataUrl() {
+  const buffer = await sharp({
+    create: {
+      width: 32,
+      height: 32,
+      channels: 4,
+      background: "#2563eb",
+    },
+  })
+    .composite([
+      {
+        input: Buffer.from('<svg width="32" height="32"><circle cx="16" cy="16" r="9" fill="#facc15"/></svg>'),
+        top: 0,
+        left: 0,
+      },
+    ])
+    .png()
+    .toBuffer();
+  return `data:image/png;base64,${buffer.toString("base64")}`;
+}
+
+function smokeBasePayload(uploaded, dataUrl = "") {
+  return {
+    product: "Test Kingdom Builder",
+    competitors: "Township",
+    platform: "Google Ads",
+    platformRules: "- No misleading claims\n- No gore, nudity, or copyrighted competitor logos\n- Icon must be readable at 64px",
+    emotion: ["好奇", "成就感"],
+    textEnabled: "否",
+    badgeText: "",
+    reference: "Use uploaded reference as highest priority style cue.",
+    referenceFiles: uploaded
+      ? [
+          {
+            name: uploaded.name,
+            type: uploaded.type,
+            size: uploaded.size,
+            url: uploaded.url,
+            publicUrl: uploaded.public_url,
+            dataUrl,
+          },
+        ]
+      : [],
+    googlePlayProfile: {
+      app_title: "Test Kingdom Builder",
+      app_id: "test.kingdom.builder",
+      category: "Simulation",
+      developer: "Test Studio",
+      short_description: "Build a medieval town, collect resources, and unlock rewards.",
+    },
+    googlePlayReferences: {
+      icon: uploaded?.public_url || "",
+      featureGraphic: "",
+      screenshots: [],
+    },
+    competitorGooglePlayProfiles: [
+      {
+        app_title: "Township",
+        app_id: "com.playrix.township",
+        category: "Simulation",
+      },
+    ],
+    competitorGooglePlayReferences: [],
+    count: 1,
+    directions: ["点击强化"],
+    promptJson: [],
+    generatedImages: [],
+  };
+}
+
+function summarizeForSmoke(value, maxChars = 7000) {
+  const text = JSON.stringify(value, null, 2);
+  return text.length > maxChars ? { truncated: true, json_preview: text.slice(0, maxChars) } : value;
+}
+
+async function runSmokeTest(mode, req) {
+  const normalizedMode = ["quick", "ai", "full"].includes(mode) ? mode : "quick";
+  const startedAt = new Date().toISOString();
+  const steps = [];
+  const io = {};
+  const mark = (name, status, detail = {}) => steps.push({ name, status, ...detail });
+
+  mark("静态页面", "passed", { message: "index.html 由当前服务托管" });
+  mark("模型配置", providerHasKey(aiProvider) && providerHasKey(imageProvider) ? "passed" : "warning", {
+    text_provider: aiProvider,
+    text_model: aiProvider === "deepseek" ? deepseekTextModel : textModel,
+    image_provider: imageProvider,
+    image_model: imageProvider === "volcengine" ? volcengineImageModel : imageModel,
+  });
+  mark("配置文件", appConfig.protocol_schema?.ICON_CREATIVE_PROTOCOL && appConfig.prompt_templates?.s2_analysis ? "passed" : "failed", {
+    has_protocol_schema: Boolean(appConfig.protocol_schema?.ICON_CREATIVE_PROTOCOL),
+    has_s2_template: Boolean(appConfig.prompt_templates?.s2_analysis),
+    has_s4_template: Boolean(appConfig.prompt_templates?.s4_prompt_plan),
+  });
+
+  const uploadInput = {
+    name: "smoke-reference.png",
+    type: "image/png",
+    dataUrl: await makeSmokeReferenceDataUrl(),
+  };
+  const uploaded = await uploadReferenceImage(uploadInput, req);
+  mark("参考图上传", "passed", {
+    public_url: uploaded.public_url,
+    type: uploaded.type,
+    size: uploaded.size,
+  });
+
+  const payload = smokeBasePayload(uploaded, uploadInput.dataUrl);
+  io.quick = {
+    upload_input: { name: uploadInput.name, type: uploadInput.type, data_url_length: uploadInput.dataUrl.length },
+    upload_output: uploaded,
+  };
+
+  let analysis = null;
+  let promptPlan = null;
+  if (normalizedMode === "ai" || normalizedMode === "full") {
+    io.analyze = { input: payload };
+    analysis = await analyzeWorkflow(payload);
+    io.analyze.output = summarizeForSmoke(analysis);
+    mark("S2 AI 分析", analysis?.generation_prompt_fields ? "passed" : "failed", {
+      has_protocol: Boolean(analysis?.ICON_CREATIVE_PROTOCOL),
+      has_generation_prompt_fields: Boolean(analysis?.generation_prompt_fields),
+    });
+
+    const optimizeInput = { ...payload, modelAnalysis: analysis };
+    io.prompt_plan = { input: optimizeInput };
+    promptPlan = await optimizePromptsConfigured(optimizeInput);
+    io.prompt_plan.output = summarizeForSmoke(promptPlan);
+    mark("S4 提示词计划", Array.isArray(promptPlan) && promptPlan.length ? "passed" : "failed", {
+      prompt_count: Array.isArray(promptPlan) ? promptPlan.length : 0,
+      has_final_prompt: Boolean(promptPlan?.[0]?.final_prompt || promptPlan?.[0]?.prompt),
+    });
+  }
+
+  if (normalizedMode === "full") {
+    const promptText =
+      promptPlan?.[0]?.final_prompt ||
+      promptPlan?.[0]?.prompt ||
+      "Create a production-ready transparent-background mobile game app icon, single golden castle emblem, high contrast, readable at 64px.";
+    const generateInput = {
+      ...payload,
+      promptJson: [
+        {
+          prompt_id: "smoke_prompt_1",
+          variant_tag: "点击强化",
+          prompt_text: promptText,
+          generation: { source: "smoke-test-ui", mode: "image_to_image_with_prompt" },
+        },
+      ],
+    };
+    io.generate = { input: generateInput };
+    const generatedImages = await generateIcons(generateInput);
+    io.generate.output = generatedImages;
+    mark("S5 Icon 生成", generatedImages.length ? "passed" : "failed", {
+      image_count: generatedImages.length,
+      first_image_url: generatedImages[0]?.url || "",
+      first_scene_url: generatedImages[0]?.scene_url || "",
+    });
+
+    const exportInput = {
+      ...payload,
+      generatedImages,
+      selectedImageIds: [generatedImages[0].image_id],
+      sizes: [1024, 512, 256, 128, 64],
+    };
+    io.export = { input: exportInput };
+    const exportResult = await exportIcons(exportInput);
+    io.export.output = exportResult;
+    mark("S8 多尺寸导出", exportResult?.zip_url ? "passed" : "failed", {
+      zip_url: exportResult?.zip_url || "",
+      file_count: exportResult?.files?.length || 0,
+    });
+  }
+
+  return {
+    ok: steps.every((step) => step.status !== "failed"),
+    mode: normalizedMode,
+    started_at: startedAt,
+    finished_at: new Date().toISOString(),
+    base_url: publicBaseUrl(req),
+    steps,
+    io,
+  };
 }
 
 function buildIconPrompt(input, index) {
@@ -1911,7 +2252,13 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/api/optimize-prompts") {
       const body = await readBody(req);
-      sendJson(res, 200, { ok: true, prompt_plan: await optimizePrompts(body) });
+      sendJson(res, 200, { ok: true, prompt_plan: await optimizePromptsConfigured(body) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/check-prompts") {
+      const body = await readBody(req);
+      sendJson(res, 200, { ok: true, report: await checkPrompts(body) });
       return;
     }
 
@@ -1948,6 +2295,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/qa") {
       const body = await readBody(req);
       sendJson(res, 200, { ok: true, reports: await qaImages(body) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/smoke-test") {
+      const body = await readBody(req);
+      sendJson(res, 200, { ok: true, result: await runSmokeTest(String(body.mode || "quick"), req) });
       return;
     }
 

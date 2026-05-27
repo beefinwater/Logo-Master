@@ -42,6 +42,7 @@ const state = {
   promptTemplate: defaultPromptTemplate(),
   promptTemplateEditing: false,
   promptConfirmed: false,
+  promptCheckReport: null,
   generatedImages: [],
   previewImage: null,
   previewImageUrl: "",
@@ -51,6 +52,11 @@ const state = {
   regenerateTargetId: "",
   regeneratePrompt: "",
   exportResult: null,
+  smokeTest: {
+    loading: "",
+    result: null,
+    error: "",
+  },
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -216,6 +222,13 @@ function syncInputs() {
       if (actionName === "regenerate") await runRegenerate();
       if (actionName === "export") await runExport();
       if (actionName === "optimize-prompts") await runPromptOptimization();
+      if (actionName === "check-prompts") await runPromptCheck();
+    });
+  });
+
+  document.querySelectorAll("[data-smoke-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await runSmokeTest(button.dataset.smokeAction || "quick");
     });
   });
 
@@ -363,6 +376,7 @@ function invalidatePrompts() {
   state.promptJson = [];
   state.promptConfirmed = false;
   state.promptOptimizations = [];
+  state.promptCheckReport = null;
 }
 
 function buildPromptJsonFromState() {
@@ -472,11 +486,14 @@ function buildGenerationPromptText({ direction, planItem, textSpec, profile, com
   };
   const selectedDirectionRules = directionRules[direction] || directionRules["点击强化"];
   const modelPrompt =
+    planItem.final_prompt ||
     planItem.prompt ||
     planItem.generation_prompt ||
+    analysis.prompt_plan?.[index]?.final_prompt ||
     analysis.prompt_plan?.[index]?.prompt ||
     analysis.prompt_plan?.[index]?.generation_prompt ||
     "";
+  if (modelPrompt.trim()) return modelPrompt.trim();
   const productBrief = synthesizeProductBrief({ productName, profile, analysis });
   const visualConcept = synthesizeVisualConcept({ direction, planItem, analysis, productName });
   const styleBrief = synthesizeStyleBrief({ analysis });
@@ -1068,6 +1085,16 @@ async function runPromptOptimization() {
   });
 }
 
+async function runPromptCheck() {
+  await runModelTask("正在检测提示词", async () => {
+    const data = await apiPost("/api/check-prompts", {
+      ...getApiPayload(),
+      promptJson: getPromptJson(),
+    });
+    state.promptCheckReport = data.report;
+  });
+}
+
 async function runRegenerate() {
   const image = state.generatedImages.find((item) => item.image_id === state.regenerateTargetId);
   if (!image) {
@@ -1109,6 +1136,21 @@ async function runExport() {
     state.exportResult = data.export;
     state.stage = 8;
   }, { requireKey: false });
+}
+
+async function runSmokeTest(mode) {
+  state.smokeTest.loading = mode;
+  state.smokeTest.error = "";
+  render();
+  try {
+    const data = await apiPost("/api/smoke-test", { mode });
+    state.smokeTest.result = data.result;
+  } catch (error) {
+    state.smokeTest.error = error.message;
+  } finally {
+    state.smokeTest.loading = "";
+    render();
+  }
 }
 
 function findPromptById(promptId) {
@@ -1714,6 +1756,66 @@ function stageFour() {
   `;
 }
 
+function stageFourCheck() {
+  const prompts = getPromptJson();
+  const check = state.promptCheckReport;
+  return `
+    <h3>Prompt 自检状态</h3>
+    <p class="stage-copy">这里会调用文本模型检测 S5 将要使用的 prompt_json，重点排查可能导致图像生成模型拒绝的违法违规、敏感或侵权风险词。检测提示词来自预设配置文件。</p>
+    <div class="model-action-bar">
+      <button class="primary-button" data-model-action="check-prompts" type="button" ${state.api.loading === "正在检测提示词" ? "disabled" : ""}>${state.api.loading === "正在检测提示词" ? "检测中..." : "调用模型检测 Prompt 风险词"}</button>
+      <span>${prompts.length} 个 prompt_json 将作为 S5 唯一生成依据</span>
+    </div>
+    ${renderProcessingNotice("正在检测提示词", "正在处理中，请稍候，正在调用文本模型检测提示词中的高风险禁用词...")}
+    ${state.api.error ? `<div class="notice">${state.api.error}</div>` : ""}
+    <div class="qa-list">
+      <div class="qa-item"><span>S1/S2 信息引入</span><span>通过</span></div>
+      <div class="qa-item"><span>提示词模板套用</span><span>通过</span></div>
+      <div class="qa-item"><span>生成方式</span><span>${hasGenerationReferences() ? "参考图 + 提示词" : "纯文本生成"}</span></div>
+      <div class="qa-item"><span>用户确认</span><span>${state.promptConfirmed ? "通过" : "待确认"}</span></div>
+      <div class="qa-item"><span>模型风险词检测</span><span>${check ? promptCheckStatusText(check.overall_status) : "待检测"}</span></div>
+    </div>
+    ${check ? renderPromptCheckReport(check) : `<div class="notice">尚未调用模型检测。建议进入 S5 前先检测一次，重点排查会导致图像模型拒绝的违法违规/敏感禁用词。</div>`}
+  `;
+}
+
+function promptCheckStatusText(status) {
+  if (status === "pass") return "通过";
+  if (status === "warning") return "有警告";
+  if (status === "block") return "高风险";
+  return status || "未知";
+}
+
+function renderPromptCheckReport(report) {
+  return `
+    <div class="prompt-check-report ${escapeHtml(report.overall_status || "")}">
+      <div class="prompt-check-summary">
+        <strong>检测结果：${escapeHtml(promptCheckStatusText(report.overall_status))}</strong>
+        <span>${escapeHtml(report.summary || "")}</span>
+      </div>
+      <div class="prompt-check-list">
+        ${(report.checked_items || [])
+          .map(
+            (item) => `
+              <article class="prompt-check-item ${escapeHtml(item.status || "")}">
+                <div class="prompt-check-head">
+                  <strong>${escapeHtml(item.prompt_id || "")} · ${escapeHtml(item.variant_tag || "")}</strong>
+                  <span>${escapeHtml(promptCheckStatusText(item.status))} / ${escapeHtml(item.risk_level || "")}</span>
+                </div>
+                ${item.risk_categories?.length ? `<p>风险类别：${escapeHtml(item.risk_categories.join(" / "))}</p>` : ""}
+                ${item.flagged_terms?.length ? `<p>命中词：${escapeHtml(item.flagged_terms.join("、"))}</p>` : ""}
+                ${item.reason ? `<p>原因：${escapeHtml(item.reason)}</p>` : ""}
+                ${item.rewrite_suggestions?.length ? `<ul>${item.rewrite_suggestions.map((tip) => `<li>${escapeHtml(tip)}</li>`).join("")}</ul>` : ""}
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+      ${report.global_rewrite_suggestions?.length ? `<div class="notice">全局建议：${escapeHtml(report.global_rewrite_suggestions.join(" / "))}</div>` : ""}
+    </div>
+  `;
+}
+
 function stageFive() {
   const count = Math.max(1, Math.min(2, Number(state.count) || 2));
   const hasRealImages = state.generatedImages.length > 0;
@@ -2044,12 +2146,89 @@ function renderOutput() {
   $("#stageOutput").textContent = JSON.stringify(getStageOutput(), null, 2);
 }
 
+function renderSmokePanel() {
+  const panel = $("#smokePanel");
+  if (!panel) return;
+  const result = state.smokeTest.result;
+  const loading = state.smokeTest.loading;
+  const modeLabel = { quick: "Quick", ai: "AI", full: "Full" };
+  panel.innerHTML = `
+    <div class="smoke-head">
+      <div>
+        <strong>一键测试面板</strong>
+        <span>Quick 不调用模型；AI 会调用分析与提示词；Full 会生成图片并导出 ZIP。</span>
+      </div>
+      <div class="smoke-actions">
+        ${["quick", "ai", "full"]
+          .map(
+            (mode) => `
+              <button class="${mode === "full" ? "ghost-button" : "primary-button"}" data-smoke-action="${mode}" type="button" ${loading ? "disabled" : ""}>
+                ${loading === mode ? `${modeLabel[mode]} 测试中...` : `跑 ${modeLabel[mode]}`}
+              </button>
+            `,
+          )
+          .join("")}
+      </div>
+    </div>
+    ${state.smokeTest.error ? `<div class="notice">${escapeHtml(state.smokeTest.error)}</div>` : ""}
+    ${loading ? `<div class="progress-notice"><span></span>正在执行 ${escapeHtml(modeLabel[loading] || loading)} 测试，请稍候...</div>` : ""}
+    ${result ? renderSmokeResult(result) : `<div class="smoke-empty">尚未运行测试。建议日常先跑 Quick，大改后再跑 AI 或 Full。</div>`}
+  `;
+}
+
+function renderSmokeResult(result) {
+  return `
+    <div class="smoke-summary ${result.ok ? "passed" : "failed"}">
+      <strong>${result.ok ? "测试通过" : "测试失败"}</strong>
+      <span>${escapeHtml(result.mode)} · ${escapeHtml(result.finished_at || "")}</span>
+    </div>
+    <div class="smoke-steps">
+      ${(result.steps || [])
+        .map(
+          (step) => `
+            <div class="smoke-step ${escapeHtml(step.status)}">
+              <strong>${escapeHtml(step.name)}</strong>
+              <span>${escapeHtml(step.status)}</span>
+              <small>${escapeHtml(step.message || step.public_url || step.first_image_url || step.zip_url || "")}</small>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+    ${renderSmokeIo(result)}
+  `;
+}
+
+function renderSmokeIo(result) {
+  const io = result.io || {};
+  const sections = [];
+  if (io.analyze) sections.push(["S2 输入", io.analyze.input], ["S2 输出", io.analyze.output]);
+  if (io.prompt_plan) sections.push(["S4 输入", io.prompt_plan.input], ["S4 输出", io.prompt_plan.output]);
+  if (io.generate) sections.push(["S5 输入", io.generate.input], ["S5 输出", io.generate.output]);
+  if (io.export) sections.push(["S8 输入", io.export.input], ["S8 输出", io.export.output]);
+  if (!sections.length) return "";
+  return `
+    <div class="smoke-io">
+      ${sections
+        .map(
+          ([title, value]) => `
+            <details>
+              <summary>${escapeHtml(title)}</summary>
+              <pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>
+            </details>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderContent() {
   const views = {
     1: stageOne,
     2: stageTwo,
     3: stageThree,
-    4: stageFour,
+    4: stageFourCheck,
     5: stageFive,
     6: stageSix,
     7: stageSeven,
@@ -2058,6 +2237,7 @@ function renderContent() {
   $("#stageContent").innerHTML = views[state.stage]();
   $("#stageTitle").textContent = stages[state.stage - 1].title;
   $("#nextBtn").textContent = state.stage === 8 ? "完成" : "下一步";
+  renderSmokePanel();
   syncInputs();
 }
 
@@ -2102,6 +2282,7 @@ $("#resetBtn").addEventListener("click", () => {
     promptTemplate: defaultPromptTemplate(),
     promptTemplateEditing: false,
     promptConfirmed: false,
+    promptCheckReport: null,
     generatedImages: [],
     previewImage: null,
     previewImageUrl: "",
