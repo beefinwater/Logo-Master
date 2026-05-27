@@ -550,12 +550,38 @@ function imageInputItems(files = []) {
     .slice(0, 2)
     .map((file) => ({
       type: "input_image",
-      image_url: file.dataUrl || file.publicUrl,
+      image_url: file.dataUrl || localUploadDataUrlFromPublicUrl(file.publicUrl) || (String(file.publicUrl || "").includes("/uploads/") ? "" : file.publicUrl),
       public_url: file.publicUrl || "",
       detail: "low",
       name: file.name || "",
       file_type: file.type || "",
-    }));
+    }))
+    .filter((item) => item.image_url);
+}
+
+function mimeTypeFromFileName(filename = "") {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".svg") return "image/svg+xml";
+  return "image/png";
+}
+
+function localUploadDataUrlFromPublicUrl(publicUrl = "") {
+  if (!publicUrl) return "";
+  let pathname = "";
+  try {
+    pathname = new URL(publicUrl, getPublicBaseUrl()).pathname;
+  } catch {
+    pathname = publicUrl;
+  }
+  if (!pathname.startsWith("/uploads/")) return "";
+  const filename = path.basename(decodeURIComponent(pathname));
+  const resolved = path.resolve(uploadDir, filename);
+  if (!resolved.startsWith(path.resolve(uploadDir) + path.sep) || !fs.existsSync(resolved)) return "";
+  const buffer = fs.readFileSync(resolved);
+  return `data:${mimeTypeFromFileName(filename)};base64,${buffer.toString("base64")}`;
 }
 
 async function visualReferenceInputItems(input) {
@@ -623,8 +649,8 @@ async function generationReferenceInputItems(input) {
 
   const refsWithSources = [...uploaded, ...googlePlay].slice(0, 5);
   return {
-    images: refsWithSources.map((item) => item.image),
-    sources: refsWithSources.map((item) => item.source),
+    images: refsWithSources.filter((item) => item.image).map((item) => item.image),
+    sources: refsWithSources.filter((item) => item.image).map((item) => item.source),
     errors,
   };
 }
