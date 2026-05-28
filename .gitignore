@@ -1,0 +1,8 @@
+.env.local
+node_modules/
+generated/
+exports/
+uploads/
+github-upload/
+tmp-*.json
+tmp-*.html
