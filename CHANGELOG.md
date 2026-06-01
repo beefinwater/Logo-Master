@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- Added project-level `AGENTS.md` to inherit the shared Vibe Coding rules and define project-specific collaboration constraints.
+- Clarified that runtime code must not be changed until the user explicitly approves code changes.
+- Documented S4 icon production spec positioning, S5 reference-image generation rules, and S8 PNG-only ZIP export rules.
+
 ## v0.1.0 - Initial Deployable Version
 
 This is the first formal baseline version of 应用icon创作大师.
