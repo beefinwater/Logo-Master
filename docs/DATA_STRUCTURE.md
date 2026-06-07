@@ -916,13 +916,10 @@ create table export_packages (
   "raw_profile": {},
   "total_score": 0,
   "score_breakdown": {},
-  "score_reasons": {},
   "decision": "manual_review",
   "config_version": "",
   "last_generated_at": "",
-  "generated_by": "manual",
   "needs_refresh": false,
-  "refresh_reason": "",
   "created_at": "",
   "updated_at": ""
 }
@@ -945,13 +942,10 @@ create table export_packages (
 | `raw_profile` | object | 原始抓取结果备份 |
 | `total_score` | number | 当前总分 |
 | `score_breakdown` | object | 单项得分明细 |
-| `score_reasons` | object | 单项得分原因 |
 | `decision` | string | 分层结果 |
 | `config_version` | string | 本次评分使用的规则版本 |
 | `last_generated_at` | string | 上次评分生成时间，精确到分钟 |
-| `generated_by` | string | 评分来源：手动更新或定时更新 |
 | `needs_refresh` | boolean | 是否因配置变更需要重新评分 |
-| `refresh_reason` | string | 待更新原因 |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
 
@@ -993,13 +987,10 @@ create table competitors (
   raw_profile jsonb not null default '{}',
   total_score numeric not null default 0,
   score_breakdown jsonb not null default '{}',
-  score_reasons jsonb not null default '{}',
   decision text not null default 'manual_review',
   config_version text,
   last_generated_at timestamptz,
-  generated_by text not null default 'manual',
   needs_refresh boolean not null default false,
-  refresh_reason text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -1110,16 +1101,6 @@ create table competitor_scoring_configs (
   updated_at timestamptz not null default now()
 );
 ```
-
-当前前端运行态会额外保存：
-
-```json
-{
-  "competitor_auto_update_enabled": false
-}
-```
-
-说明：该字段用于控制浏览器端 1 分钟自动刷新评分的开关。未来接入云数据库和服务端定时任务后，可迁移为服务端 job 配置。
 
 ### 16.11 竞品配置变更处理
 

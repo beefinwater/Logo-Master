@@ -2,12 +2,6 @@
 
 ## Unreleased
 
-### Added
-
-- Added runtime competitor scoring configuration with editable score values and review thresholds.
-- Added product-vs-competitor name keyword similarity scoring without cross-category negative scoring.
-- Added competitor dashboard with score, layer decision, config version, last generated time, refresh status, manual update, immediate scheduled update, and a 1-minute auto-update toggle.
-
 ### Documentation
 
 - Added project-level `AGENTS.md` to inherit the shared Vibe Coding rules and define project-specific collaboration constraints.

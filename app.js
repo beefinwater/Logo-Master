@@ -57,226 +57,10 @@ const state = {
     result: null,
     error: "",
   },
-  competitorScoringConfig: defaultCompetitorScoringConfig(),
-  competitorScores: [],
-  competitorScoreFilter: "all",
-  competitorAutoUpdateEnabled: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
 const apiBase = window.location.protocol === "file:" ? "http://localhost:8787" : "";
-let competitorAutoUpdateTimer = null;
-
-function defaultCompetitorScoringConfig() {
-  return {
-    config_version: "v1.0.0",
-    scoring_rules: {
-      category_exact_match: { label: "分类完全匹配", score: 5, min: -10, max: 10 },
-      category_partial_match: { label: "分类弱匹配", score: 2, min: -10, max: 10 },
-      business_model_match: { label: "商业模式或题材相同", score: 2, min: -10, max: 10 },
-      same_developer_bonus: { label: "同开发商 Bonus", score: 1, min: -10, max: 10 },
-      exact_core_keyword_match: { label: "核心关键词高度重合", score: 3, min: -10, max: 10 },
-      semantic_keyword_match: { label: "关键词语义近似", score: 2, min: -10, max: 10 },
-      weak_topic_match: { label: "关键词弱相关", score: 1, min: -10, max: 10 },
-      no_keyword_relation: { label: "名称关键词无关", score: 0, min: -10, max: 10 },
-    },
-    review_thresholds: {
-      auto_accept_min_score: { label: "自动入库", score: 5, min: -50, max: 50 },
-      auto_reject_max_score: { label: "自动排除", score: 1, min: -50, max: 50 },
-    },
-  };
-}
-
-function bumpConfigVersion(version = "v1.0.0") {
-  const match = String(version).match(/^v(\d+)\.(\d+)\.(\d+)$/);
-  if (!match) return `v1.0.${Date.now()}`;
-  return `v${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
-}
-
-function formatMinute(date = new Date()) {
-  const pad = (value) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function scoringValue(key) {
-  return Number(state.competitorScoringConfig.scoring_rules[key]?.score || 0);
-}
-
-function thresholdValue(key) {
-  return Number(state.competitorScoringConfig.review_thresholds[key]?.score || 0);
-}
-
-function tokenizeName(value = "") {
-  const stopWords = new Set(["the", "a", "an", "and", "of", "to", "for", "with", "new", "game", "games", "app", "mobile"]);
-  return String(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, " ")
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2 && !stopWords.has(token));
-}
-
-function hasSemanticKeywordMatch(productTokens, competitorTokens) {
-  const groups = [
-    ["kingdom", "empire", "castle", "realm", "royal", "throne"],
-    ["town", "city", "village", "settlement", "township"],
-    ["build", "builder", "building", "rebuild", "rebuilt", "construct"],
-    ["match", "puzzle", "blast", "merge", "tile"],
-    ["farm", "farming", "harvest", "crop"],
-    ["casino", "slot", "slots", "cash", "club"],
-    ["war", "battle", "army", "hero", "heroes"],
-  ];
-  return groups.some((group) => {
-    const productHit = productTokens.some((token) => group.includes(token));
-    const competitorHit = competitorTokens.some((token) => group.includes(token));
-    return productHit && competitorHit;
-  });
-}
-
-function scoreNameKeywordSimilarity(productName, competitorName, productCategory = "", competitorCategory = "") {
-  const productTokens = tokenizeName(productName);
-  const competitorTokens = tokenizeName(competitorName);
-  const commonTokens = competitorTokens.filter((token) => productTokens.includes(token));
-  if (commonTokens.length) {
-    return {
-      score: scoringValue("exact_core_keyword_match"),
-      level: "exact_core_keyword_match",
-      reason: `共同关键词：${commonTokens.join(", ")}`,
-    };
-  }
-  if (hasSemanticKeywordMatch(productTokens, competitorTokens)) {
-    return {
-      score: scoringValue("semantic_keyword_match"),
-      level: "semantic_keyword_match",
-      reason: "名称中存在题材或玩法近义词",
-    };
-  }
-  const mergedProduct = `${productName} ${productCategory}`.toLowerCase();
-  const mergedCompetitor = `${competitorName} ${competitorCategory}`.toLowerCase();
-  const weakHints = ["sim", "strategy", "casual", "puzzle", "rpg", "action", "arcade", "simulation", "adventure", "casino"];
-  if (weakHints.some((hint) => mergedProduct.includes(hint) && mergedCompetitor.includes(hint))) {
-    return {
-      score: scoringValue("weak_topic_match"),
-      level: "weak_topic_match",
-      reason: "名称或分类存在弱题材关联",
-    };
-  }
-  return {
-    score: scoringValue("no_keyword_relation"),
-    level: "no_keyword_relation",
-    reason: "名称层面无明显关键词关系",
-  };
-}
-
-function decideCompetitorLayer(totalScore) {
-  if (totalScore >= thresholdValue("auto_accept_min_score")) return "auto_accept";
-  if (totalScore <= thresholdValue("auto_reject_max_score")) return "auto_reject";
-  return "manual_review";
-}
-
-function decisionLabel(decision) {
-  const labels = {
-    auto_accept: "自动入库",
-    manual_review: "人工审核",
-    auto_reject: "自动排除",
-  };
-  return labels[decision] || "人工审核";
-}
-
-function scoreCompetitorItem(profile = {}, visualPack = {}, generatedBy = "manual", existing = {}) {
-  const productProfile = state.googlePlay?.product_profile || {};
-  const productName = productProfile.app_title || state.product || "";
-  const competitorName = profile.app_title || profile.title || "";
-  const productCategory = productProfile.category || "";
-  const competitorCategory = profile.category || "";
-  const scoreBreakdown = {};
-  const scoreReasons = {};
-
-  if (productCategory && competitorCategory && productCategory === competitorCategory) {
-    scoreBreakdown.category_match = scoringValue("category_exact_match");
-    scoreReasons.category_match = "Google Play 分类完全一致";
-  } else if (productCategory && competitorCategory && productCategory.split(/\s|-/)[0] === competitorCategory.split(/\s|-/)[0]) {
-    scoreBreakdown.category_match = scoringValue("category_partial_match");
-    scoreReasons.category_match = "Google Play 分类存在弱匹配";
-  } else {
-    scoreBreakdown.category_match = 0;
-    scoreReasons.category_match = "分类未命中";
-  }
-
-  const keyword = scoreNameKeywordSimilarity(productName, competitorName, productCategory, competitorCategory);
-  scoreBreakdown.name_keyword_similarity = keyword.score;
-  scoreReasons.name_keyword_similarity = keyword.reason;
-
-  const productDesc = `${productProfile.short_description || ""} ${productCategory}`.toLowerCase();
-  const competitorDesc = `${profile.short_description || ""} ${competitorCategory}`.toLowerCase();
-  const businessHints = ["casino", "slot", "puzzle", "match", "builder", "build", "rpg", "strategy", "simulation", "farm"];
-  const businessMatched = businessHints.some((hint) => productDesc.includes(hint) && competitorDesc.includes(hint));
-  scoreBreakdown.business_model_match = businessMatched ? scoringValue("business_model_match") : 0;
-  scoreReasons.business_model_match = businessMatched ? "短描述或分类存在商业模式/题材共同信号" : "未命中商业模式共同信号";
-
-  const sameDeveloper = productProfile.developer && profile.developer && productProfile.developer === profile.developer;
-  scoreBreakdown.same_developer_bonus = sameDeveloper ? scoringValue("same_developer_bonus") : 0;
-  scoreReasons.same_developer_bonus = sameDeveloper ? "开发商一致" : "开发商不一致或缺失";
-
-  const totalScore = Object.values(scoreBreakdown).reduce((sum, value) => sum + Number(value || 0), 0);
-  const decision = decideCompetitorLayer(totalScore);
-  const now = formatMinute();
-
-  return {
-    competitor_id: existing.competitor_id || profile.app_id || `competitor_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-    product_id: productProfile.app_id || state.product || "current_product",
-    competitor_name: competitorName,
-    app_id: profile.app_id || "",
-    store_url: profile.detail_url || "",
-    developer: profile.developer || "",
-    category: competitorCategory,
-    short_description: profile.short_description || "",
-    icon_url: visualPack.icon || "",
-    source_query: state.competitors || "",
-    raw_profile: profile,
-    total_score: totalScore,
-    score_breakdown: scoreBreakdown,
-    score_reasons: scoreReasons,
-    decision,
-    config_version: state.competitorScoringConfig.config_version,
-    last_generated_at: now,
-    generated_by: generatedBy,
-    needs_refresh: false,
-    created_at: existing.created_at || now,
-    updated_at: now,
-  };
-}
-
-function updateCompetitorScores(generatedBy = "manual") {
-  const competitors = state.googlePlay?.competitor_profiles || [];
-  const competitorPacks = state.googlePlay?.competitor_visual_reference_pack || [];
-  const previous = new Map(state.competitorScores.map((item) => [item.app_id || item.competitor_id, item]));
-  state.competitorScores = competitors.map((profile, index) => {
-    const key = profile.app_id || `competitor_${index}`;
-    return scoreCompetitorItem(profile, competitorPacks[index] || {}, generatedBy, previous.get(key) || {});
-  });
-}
-
-function markCompetitorScoresStale() {
-  state.competitorScores = state.competitorScores.map((item) => ({
-    ...item,
-    needs_refresh: true,
-    refresh_reason: "scoring_config_changed",
-  }));
-}
-
-function syncCompetitorAutoUpdateTimer() {
-  if (competitorAutoUpdateTimer) {
-    clearInterval(competitorAutoUpdateTimer);
-    competitorAutoUpdateTimer = null;
-  }
-  if (!state.competitorAutoUpdateEnabled) return;
-  competitorAutoUpdateTimer = setInterval(() => {
-    if (!state.googlePlay) return;
-    updateCompetitorScores("scheduled");
-    render();
-  }, 60 * 1000);
-}
 
 function renderShell() {
   $("#stageNav").innerHTML = stages
@@ -502,56 +286,6 @@ function syncInputs() {
     });
   });
 
-  document.querySelectorAll("[data-scoring-rule]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const key = input.dataset.scoringRule;
-      const rule = state.competitorScoringConfig.scoring_rules[key];
-      if (!rule) return;
-      const value = Number(input.value);
-      rule.score = Math.max(Number(rule.min), Math.min(Number(rule.max), Number.isFinite(value) ? value : 0));
-      state.competitorScoringConfig.config_version = bumpConfigVersion(state.competitorScoringConfig.config_version);
-      markCompetitorScoresStale();
-      render();
-    });
-  });
-
-  document.querySelectorAll("[data-scoring-threshold]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const key = input.dataset.scoringThreshold;
-      const threshold = state.competitorScoringConfig.review_thresholds[key];
-      if (!threshold) return;
-      const value = Number(input.value);
-      threshold.score = Math.max(Number(threshold.min), Math.min(Number(threshold.max), Number.isFinite(value) ? value : 0));
-      state.competitorScoringConfig.config_version = bumpConfigVersion(state.competitorScoringConfig.config_version);
-      markCompetitorScoresStale();
-      render();
-    });
-  });
-
-  document.querySelectorAll("[data-competitor-score-action]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const actionName = button.dataset.competitorScoreAction;
-      if (actionName === "manual-update") {
-        updateCompetitorScores("manual");
-      }
-      if (actionName === "scheduled-update") {
-        updateCompetitorScores("scheduled");
-      }
-      if (actionName === "toggle-scheduled-update") {
-        state.competitorAutoUpdateEnabled = !state.competitorAutoUpdateEnabled;
-        syncCompetitorAutoUpdateTimer();
-      }
-      render();
-    });
-  });
-
-  document.querySelectorAll("[data-score-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.competitorScoreFilter = button.dataset.scoreFilter || "all";
-      render();
-    });
-  });
-
   document.querySelectorAll("[data-prompt-edit]").forEach((textarea) => {
     textarea.addEventListener("input", () => {
       const index = Number(textarea.dataset.promptEdit);
@@ -592,7 +326,6 @@ async function runGooglePlayLookup() {
     state.googlePlay = data.google_play;
     state.modelAnalysis = null;
     state.promptJson = [];
-    updateCompetitorScores("manual");
   }, { requireKey: false });
 }
 
@@ -630,9 +363,6 @@ function getApiPayload() {
     promptOptimizations: state.promptOptimizations,
     generatedImages: state.generatedImages,
     selectedImageIds: state.selectedImageIds,
-    competitorScoringConfig: state.competitorScoringConfig,
-    competitorScores: state.competitorScores,
-    competitorAutoUpdateEnabled: state.competitorAutoUpdateEnabled,
   };
 }
 
@@ -1662,138 +1392,6 @@ function assetUrl(url) {
   return `${apiBase}${url}`;
 }
 
-function renderNumberControl({ key, item, type }) {
-  const dataAttr = type === "threshold" ? `data-scoring-threshold="${key}"` : `data-scoring-rule="${key}"`;
-  return `
-    <label class="score-control">
-      <span>
-        <strong>${escapeHtml(item.label || key)}</strong>
-        <em>${Number(item.min)} 到 ${Number(item.max)}</em>
-      </span>
-      <input type="number" ${dataAttr} min="${Number(item.min)}" max="${Number(item.max)}" step="1" value="${Number(item.score)}" />
-    </label>
-  `;
-}
-
-function renderCompetitorScoringConfig() {
-  const config = state.competitorScoringConfig;
-  const rules = config.scoring_rules;
-  const thresholds = config.review_thresholds;
-  return `
-    <section class="score-panel">
-      <div class="score-panel-head">
-        <div>
-          <h4>竞品评分规则配置</h4>
-          <p>单项分值和分层阈值均可人工调整。保存调整后，已存竞品会标记为待更新；手动或定时更新会使用当前最新配置。</p>
-        </div>
-        <span class="score-version">${escapeHtml(config.config_version)}</span>
-      </div>
-      <div class="score-config-grid">
-        <div class="score-config-card">
-          <h5>分类 / 商业信号</h5>
-          ${["category_exact_match", "category_partial_match", "business_model_match", "same_developer_bonus"]
-            .map((key) => renderNumberControl({ key, item: rules[key], type: "rule" }))
-            .join("")}
-        </div>
-        <div class="score-config-card">
-          <h5>本品/竞品名称关键词近似度</h5>
-          <p class="score-card-note">该维度只加分或不加分，不设置跨品类负分项。</p>
-          ${["exact_core_keyword_match", "semantic_keyword_match", "weak_topic_match", "no_keyword_relation"]
-            .map((key) => renderNumberControl({ key, item: rules[key], type: "rule" }))
-            .join("")}
-        </div>
-        <div class="score-config-card">
-          <h5>自动审核阈值</h5>
-          ${["auto_accept_min_score", "auto_reject_max_score"]
-            .map((key) => renderNumberControl({ key, item: thresholds[key], type: "threshold" }))
-            .join("")}
-          <div class="score-threshold-note">
-            <span>总分 ≥ ${thresholdValue("auto_accept_min_score")}：自动入库</span>
-            <span>总分 ≤ ${thresholdValue("auto_reject_max_score")}：自动排除</span>
-            <span>中间区间：人工审核</span>
-          </div>
-        </div>
-      </div>
-      <div class="score-actions">
-        <button class="primary-button" data-competitor-score-action="manual-update" type="button" ${state.googlePlay ? "" : "disabled"}>手动更新评分</button>
-        <button class="ghost-button" data-competitor-score-action="scheduled-update" type="button" ${state.googlePlay ? "" : "disabled"}>立即执行定时更新</button>
-        <button class="ghost-button ${state.competitorAutoUpdateEnabled ? "active" : ""}" data-competitor-score-action="toggle-scheduled-update" type="button" ${state.googlePlay ? "" : "disabled"}>${state.competitorAutoUpdateEnabled ? "停止 1 分钟自动更新" : "开启 1 分钟自动更新"}</button>
-      </div>
-    </section>
-  `;
-}
-
-function renderCompetitorDashboard() {
-  const scores = state.competitorScores || [];
-  if (!scores.length) {
-    return `<div class="upload-empty">暂无竞品评分数据。完成 Google Play 检索后会自动生成竞品看板。</div>`;
-  }
-  const filters = [
-    ["all", "全部"],
-    ["auto_accept", "自动入库"],
-    ["manual_review", "人工审核"],
-    ["auto_reject", "自动排除"],
-    ["needs_refresh", "待更新"],
-  ];
-  const filtered = scores.filter((item) => {
-    if (state.competitorScoreFilter === "all") return true;
-    if (state.competitorScoreFilter === "needs_refresh") return item.needs_refresh;
-    return item.decision === state.competitorScoreFilter;
-  });
-  return `
-    <section class="score-panel">
-      <div class="score-panel-head">
-        <div>
-          <h4>竞品看板</h4>
-          <p>展示当前评分、分层结果、配置版本和上次生成时间。待更新表示评分基于旧配置。</p>
-        </div>
-      </div>
-      <div class="score-filters">
-        ${filters
-          .map(
-            ([key, label]) => `
-              <button class="score-filter ${state.competitorScoreFilter === key ? "active" : ""}" data-score-filter="${key}" type="button">${label}</button>
-            `,
-          )
-          .join("")}
-      </div>
-      <div class="score-table">
-        <div class="score-row score-row-head">
-          <span>竞品</span>
-          <span>分数</span>
-          <span>分层</span>
-          <span>配置</span>
-          <span>上次生成</span>
-          <span>状态</span>
-        </div>
-        ${filtered
-          .map(
-            (item) => `
-              <div class="score-row">
-                <span class="score-app">
-                  ${item.icon_url ? `<img src="${assetUrl(item.icon_url)}" alt="${escapeHtml(item.competitor_name)}" />` : ""}
-                  <strong>${escapeHtml(item.competitor_name || item.app_id || "竞品")}</strong>
-                  <em>${escapeHtml(item.category || "未知分类")}</em>
-                </span>
-                <span><strong>${Number(item.total_score || 0)}</strong></span>
-                <span><mark class="${item.decision}">${decisionLabel(item.decision)}</mark></span>
-                <span>${escapeHtml(item.config_version || "-")}</span>
-                <span>${escapeHtml(item.last_generated_at || "-")}</span>
-                <span>${item.needs_refresh ? '<b class="needs-refresh">待更新</b>' : '<b class="fresh">已更新</b>'}</span>
-              </div>
-              <div class="score-breakdown">
-                ${Object.entries(item.score_breakdown || {})
-                  .map(([key, value]) => `<span>${escapeHtml(key)}: ${Number(value || 0)} · ${escapeHtml(item.score_reasons?.[key] || "")}</span>`)
-                  .join("")}
-              </div>
-            `,
-          )
-          .join("")}
-      </div>
-    </section>
-  `;
-}
-
 function renderGooglePlayPack() {
   if (!state.googlePlay) {
     return `<div class="upload-empty">尚未检索 Google Play。填写产品名后点击自动检索，会抓取 icon、主图和截图作为默认参考。</div>`;
@@ -1865,8 +1463,6 @@ function renderGooglePlayPack() {
         `
           : ""
       }
-      ${renderCompetitorScoringConfig()}
-      ${renderCompetitorDashboard()}
     </div>
   `;
 }
@@ -2465,9 +2061,6 @@ function getStageOutput() {
     qa_reports: state.qaReports,
     selected_image_ids: state.selectedImageIds,
     export_result: state.exportResult,
-    competitor_scoring_config: state.competitorScoringConfig,
-    competitor_scores: state.competitorScores,
-    competitor_auto_update_enabled: state.competitorAutoUpdateEnabled,
   };
 
   const stageOutputs = {
@@ -2698,12 +2291,7 @@ $("#resetBtn").addEventListener("click", () => {
     regenerateTargetId: "",
     regeneratePrompt: "",
     exportResult: null,
-    competitorScoringConfig: defaultCompetitorScoringConfig(),
-    competitorScores: [],
-    competitorScoreFilter: "all",
-    competitorAutoUpdateEnabled: false,
   });
-  syncCompetitorAutoUpdateTimer();
   render();
 });
 
